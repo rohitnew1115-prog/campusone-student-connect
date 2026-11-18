@@ -3,11 +3,13 @@ import os, json, sqlite3, secrets, re, logging
 from datetime import datetime, timezone
 from pathlib import Path
 from functools import wraps
+from dotenv import load_dotenv
 from flask import Flask, g, request, jsonify, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 ROOT=Path(__file__).resolve().parent
+load_dotenv(ROOT/'.env')
 DATA=Path(os.environ.get('CAMPUSONE_DATA_DIR',ROOT/'instance')); DATA.mkdir(parents=True,exist_ok=True)
 DB=DATA/'campusone.sqlite3'; UPLOADS=DATA/'uploads'; UPLOADS.mkdir(exist_ok=True)
 app=Flask(__name__, static_folder='frontend', static_url_path='')
