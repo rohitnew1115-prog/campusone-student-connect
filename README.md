@@ -21,6 +21,8 @@ python app.py
 
 Open http://127.0.0.1:5000. Register using the configured administrator email to create the first admin. Other signups are students. Data is stored in `instance/campusone.sqlite3`; uploaded images are stored in `instance/uploads/`. Keep both on persistent storage and back them up.
 
+To fill a local capstone demo with fictional examples, run `python database/seed_demo.py`. It adds 10 labelled demo student profiles, sample projects and teams, tutors, mentors, 12 opportunities, campus issues and lost/found listings with original SVG item illustrations. It is safe to run more than once. Demo accounts have random, undisclosed password hashes and cannot sign in; use them as showcase content only.
+
 ## Features
 
 - Password hashed account registration, login, logout, profile editing and role checks.
