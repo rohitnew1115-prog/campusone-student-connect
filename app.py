@@ -15,7 +15,7 @@ DB=DATA/'campusone.sqlite3'; UPLOADS=DATA/'uploads'; UPLOADS.mkdir(exist_ok=True
 app=Flask(__name__, static_folder='frontend', static_url_path='')
 app.config.update(SECRET_KEY=os.environ.get('CAMPUSONE_SECRET') or 'dev-only-change-this-secret', MAX_CONTENT_LENGTH=5*1024*1024, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','0')=='1')
 logging.basicConfig(level=os.environ.get('LOG_LEVEL','INFO'))
-MODULES={'teams':'projects','tutoring':'tutors','lost-found':'items','opportunities':'opportunities','mentors':'mentors','issues':'issues'}
+MODULES={'teams':'projects','tutoring':'tutors','lost-found':'items','opportunities':'opportunities'}
 ALLOWED_UPLOAD={'png','jpg','jpeg','webp'}
 
 def now(): return datetime.now(timezone.utc).isoformat(timespec='seconds')
@@ -280,8 +280,7 @@ def dashboard():
 def admin_dashboard():
     c=db(); stats={'students':c.execute("SELECT count(*) FROM users WHERE role='student'").fetchone()[0], 'active_users':c.execute("SELECT count(*) FROM users WHERE active=1").fetchone()[0]}
     for m in MODULES: stats[m]=c.execute('SELECT count(*) FROM records WHERE module=?',(m,)).fetchone()[0]
-    stats['pending_issues']=c.execute("SELECT count(*) FROM records WHERE module='issues' AND status IN ('Submitted','Under Review','Assigned','In Progress')").fetchone()[0]
-    return jsonify(stats=stats,users=[dict(x) for x in c.execute('SELECT id,name,email,role,active,created_at FROM users ORDER BY created_at DESC LIMIT 100')],issues=[record_dict(x,True) for x in c.execute("SELECT * FROM records WHERE module='issues' ORDER BY created_at DESC LIMIT 50")])
+    return jsonify(stats=stats,users=[dict(x) for x in c.execute('SELECT id,name,email,role,active,created_at FROM users ORDER BY created_at DESC LIMIT 100')])
 @app.put('/api/admin/users/<int:uid>')
 @admin_required
 def admin_user(uid):
@@ -289,7 +288,7 @@ def admin_user(uid):
 @app.put('/api/admin/records/<int:rid>')
 @admin_required
 def admin_record(rid):
-    d=payload(); status=str(d.get('status','')).strip(); allowed={'issues':{'Under Review','Assigned','In Progress','Resolved','Rejected','Submitted'},'lost-found':{'Open','Claim Pending','Returned','Closed'}}
+    d=payload(); status=str(d.get('status','')).strip(); allowed={'lost-found':{'Open','Claim Pending','Returned','Closed'}}
     c=db(); r=c.execute('SELECT * FROM records WHERE id=?',(rid,)).fetchone()
     if not r: return api_error('Record not found.',404)
     if status not in allowed.get(r['module'],set()): return api_error('Invalid status for this record.')

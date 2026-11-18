@@ -40,12 +40,6 @@ TUTORS=[
  ('Introductory electronics lab','Electronics','Circuit basics and Arduino','Meera Nair'),('Academic writing studio','Writing','Structure, clarity and citations','Kavya Joseph'),
  ('CAD and design review','CAD','Sketches, assemblies and print prep','Arjun Rao'),('GIS mapping basics','GIS','Layers, coordinates and map design','Sara Thomas'),
 ]
-MENTORS=[
- ('Finding your footing in Year 1','Computing','Year 3',['Study planning','Campus life'],'Weekday evenings'),('Getting started with research','Biotechnology','Year 4',['Research','Lab skills'],'Mon/Wed'),
- ('Portfolio feedback for designers','Design','Year 4',['UI design','Figma'],'Weekends'),('Robotics project mentoring','Electronics','Year 4',['Arduino','Prototyping'],'Tue/Thu'),
- ('Internship search and interview prep','Business','Year 4',['Career planning','Presentations'],'Friday afternoons'),('Making your first web app','Computing','Year 3',['JavaScript','Flask'],'After 4 pm'),
- ('Engineering project planning','Mechanical','Year 4',['CAD','Prototyping'],'Flexible'),('Campus volunteering guide','Civil','Year 4',['Community','Sustainability'],'Weekends'),
-]
 OPPORTUNITIES=[
  ('Student Innovation Showcase','Campus Events','2026-12-12','Open to all departments','Demo your class or side project at the student showcase.'),
  ('Winter Web Build Weekend','Hackathons','2026-12-05','Teams of 2–5 students','Build a useful campus web experience in a friendly weekend sprint.'),
@@ -59,16 +53,6 @@ OPPORTUNITIES=[
  ('Campus Wellbeing Ideas Fund','Other Opportunities','2027-01-22','Student clubs and project groups','Propose a small activity that helps students find community.'),
  ('Robotics Lab Open Evening','Workshops','2026-12-03','Beginners and experienced builders','Try sensors, simple controls and rapid prototyping with lab mentors.'),
  ('First-Year Peer Guide Applications','Internships','2027-01-12','Returning students','Apply to welcome new students and help them navigate campus resources.'),
-]
-ISSUES=[
- ('Demo: Study hall lights flicker','Electricity','North study hall, Room 204','Lights flicker near the back row during evening classes.','Normal','Under Review'),
- ('Demo: Water fountain not cooling','Water Supply','Library, ground floor','Fountain runs but the water is warm. Please check the cooling unit.','Low','Submitted'),
- ('Demo: Wi-Fi drops in seminar room','Internet / Wi-Fi','Science block, Seminar 3','Connection drops repeatedly during lectures.','High','Assigned'),
- ('Demo: Projector cable loose','Classroom Maintenance','Arts block, Room 18','Display cable disconnects if the desk is moved.','Normal','In Progress'),
- ('Demo: Lab sink drain is slow','Laboratory Issues','Chemistry lab, bench 6','Drain backs up during normal cleaning.','Normal','Submitted'),
- ('Demo: Broken path light','Electricity','West path near sports centre','One path light is out after sunset.','High','Under Review'),
- ('Demo: Refill station needs cleaning','Sanitation','Student centre, level 2','The refill station area needs a routine clean.','Low','Resolved'),
- ('Demo: Hostel laundry machine offline','Hostel Issues','West hostel, laundry room','Machine 4 shows an error and will not start.','Normal','Assigned'),
 ]
 ITEMS=[
  ('Demo: Teal water bottle','Found','Bottle','Library second floor, study tables','2026-11-16','teal water bottle','bottle.svg','Open'),
@@ -108,13 +92,8 @@ def main():
         for i,(title,subject,topics,person) in enumerate(TUTORS):
             p=PEOPLE[next(k for k,x in enumerate(PEOPLE) if x[0]==person)]
             add('tutoring',ids[person],title,{'subject':subject,'topics':topics,'experience':p[6],'availability':p[5],'mode':'Either','department':p[1],'session_length':'60 minutes','group_size':'One to one'})
-        for i,(title,dept,year,expertise,availability) in enumerate(MENTORS):
-            p=PEOPLE[i]
-            add('mentors',student_ids[i],title,{'department':dept,'year':year,'expertise':expertise,'interests':expertise,'experience':p[6],'availability':availability,'format':'Either','languages':'English · Demo profile'})
         for i,(title,category,deadline,eligibility,desc) in enumerate(OPPORTUNITIES):
             add('opportunities',office,title,{'category':category,'department':'All departments','deadline':deadline,'location':'Campus · Demo listing','registration_url':'','organizer':'Campus Office · Demo','eligibility':eligibility,'cost':'No fee listed','description':desc})
-        for idx,(title,category,location,desc,urgency,status) in enumerate(ISSUES):
-            add('issues',student_ids[idx%len(student_ids)],title,{'category':category,'location':location,'description':desc,'urgency':urgency,'when_observed':'Demo entry · November 2026','complaint_id':'DEMO-'+str(idx+1001)},status)
         for idx,(title,kind,category,location,date,detail,image,status) in enumerate(ITEMS):
             owner=student_ids[idx%len(student_ids)]
             add('lost-found',owner,title,{'type':kind,'category':category,'location':location,'date':date,'description':detail,'color_brand':detail,'photo_url':'/assets/lost-found/'+image,'contact_method':'CampusOne claim request · Demo listing'},status)

@@ -47,8 +47,8 @@ class CampusOneFlows(unittest.TestCase):
             password_hash = campus.db().execute('select password_hash from users where email=?', ('avery@campus.test',)).fetchone()[0]
         self.assertNotEqual(password_hash, 'long-test-password')
 
-    def test_six_modules_and_student_collaboration(self):
-        modules = ['teams', 'tutoring', 'lost-found', 'mentors', 'issues']
+    def test_remaining_modules_and_student_collaboration(self):
+        modules = ['teams', 'tutoring', 'lost-found']
         for module in modules:
             listing = self.create(self.a, module, 'A shared ' + module + ' listing', {'description': 'Campus details'})
             results = self.b.get('/api/' + module + '?q=shared').get_json()['items']
@@ -70,18 +70,18 @@ class CampusOneFlows(unittest.TestCase):
         self.assertTrue(save.get_json()['saved'])
         self.assertTrue(self.b.get('/api/opportunities?saved=1').get_json()['items'])
 
-    def test_admin_issue_status_and_user_controls(self):
-        issue = self.create(self.a, 'issues', 'Broken classroom light', {'location': 'Room 5'})
-        self.assertTrue(issue['data']['complaint_id'].startswith('CO-'))
-        denied = self.b.put('/api/admin/records/' + str(issue['id']), json={'status': 'Resolved'})
+    def test_admin_lost_found_moderation_and_user_controls(self):
+        item = self.create(self.a, 'lost-found', 'Found classroom keys', {'location': 'Room 5'})
+        denied = self.b.put('/api/admin/records/' + str(item['id']), json={'status': 'Returned'})
         self.assertEqual(denied.status_code, 403)
-        updated = self.admin.put('/api/admin/records/' + str(issue['id']), json={'status': 'In Progress', 'note': 'Maintenance assigned'})
+        updated = self.admin.put('/api/admin/records/' + str(item['id']), json={'status': 'Returned', 'note': 'Returned to owner'})
         self.assertEqual(updated.status_code, 200)
-        history = self.a.get('/api/records/' + str(issue['id']) + '/history').get_json()['history']
-        self.assertEqual(history[-1]['status'], 'In Progress')
+        history = self.a.get('/api/records/' + str(item['id']) + '/history').get_json()['history']
+        self.assertEqual(history[-1]['status'], 'Returned')
         student_id = self.b.get('/api/auth/me').get_json()['user']['id']
         self.assertTrue(self.admin.put('/api/admin/users/' + str(student_id), json={'active': False}).get_json()['ok'])
         self.assertEqual(self.b.get('/api/auth/me').status_code, 401)
+        self.assertEqual(self.a.get('/api/issues').status_code, 404)
 
     def test_team_creation_and_named_member_invitation(self):
         self.a.put('/api/profile', json={'skills': 'Python, Web design', 'department': 'Computing'})
