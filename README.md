@@ -43,6 +43,10 @@ The UI and API implement working create, search, request/response, status and no
 
 Use a persistent disk mounted at `/data`, set `CAMPUSONE_DATA_DIR=/data`, set `CAMPUSONE_SECRET` to a generated secret, set `CAMPUSONE_ADMIN_EMAIL` before the first admin registers, and enable secure cookies behind HTTPS (`COOKIE_SECURE=1`). Run one Gunicorn worker for SQLite writes; use backups and monitor disk space. Configure TLS, reverse proxy request limits, SMTP, rate limiting and campus-approved CORS/origin policies before real campus use. `Dockerfile` and `render.yaml` configure a production container, health check, HTTPS cookies, generated session secret and persistent `/data` storage for SQLite and uploads. Do not deploy SQLite on a temporary filesystem.
 
+## Free phone demo
+
+For a no-cost demo deployment, use `render-free.yaml` as the Blueprint file in Render. It creates a public web service with a shareable HTTPS URL. The free service sleeps after 15 minutes without traffic and may take about a minute to wake up. Its filesystem is temporary, so accounts, listings, notifications and uploaded photos can disappear after restarts or redeploys. Use the paid `render.yaml` configuration when the app needs persistent data.
+
 ## Project layout
 
 ```text

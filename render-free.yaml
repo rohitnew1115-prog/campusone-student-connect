@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: campusone-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      - key: CAMPUSONE_DATA_DIR
+        value: /data
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: CAMPUSONE_SECRET
+        generateValue: true
+      - key: CAMPUSONE_ADMIN_EMAIL
+        sync: false
