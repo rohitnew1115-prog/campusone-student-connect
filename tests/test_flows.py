@@ -81,7 +81,25 @@ class CampusOneFlows(unittest.TestCase):
         student_id = self.b.get('/api/auth/me').get_json()['user']['id']
         self.assertTrue(self.admin.put('/api/admin/users/' + str(student_id), json={'active': False}).get_json()['ok'])
         self.assertEqual(self.b.get('/api/auth/me').status_code, 401)
-        self.assertEqual(self.a.get('/api/issues').status_code, 404)
+
+    def test_mentor_and_issue_modules(self):
+        mentor = self.create(self.a, 'mentors', 'Peer mentor for first years', {'expertise': ['study planning'], 'availability': 'Fridays'})
+        self.assertEqual(mentor['status'], 'Pending')
+        sent = self.b.post(f"/api/mentors/{mentor['id']}/requests", json={'message': 'Could you help me plan my semester?'})
+        self.assertEqual(sent.status_code, 201, sent.get_json())
+        self.assertTrue(any('mentor request' in n['title'].lower() for n in self.a.get('/api/notifications').get_json()['notifications']))
+
+        report = self.create(self.b, 'issues', 'Broken lights near library', {'location': 'Library entrance', 'urgency': 'High'})
+        self.assertTrue(report['data']['complaint_id'].startswith('CO-'))
+        self.assertEqual(report['status'], 'Submitted')
+        queue = self.admin.get('/api/admin/dashboard').get_json()['issues']
+        self.assertTrue(any(row['id'] == report['id'] for row in queue))
+        update = self.admin.put(f"/api/admin/records/{report['id']}", json={'status': 'In Progress', 'note': 'Facilities team notified'})
+        self.assertEqual(update.status_code, 200, update.get_json())
+        history = self.b.get(f"/api/records/{report['id']}/history").get_json()['history']
+        self.assertEqual(history[-1]['status'], 'In Progress')
+        notifications = self.b.get('/api/notifications').get_json()['notifications']
+        self.assertTrue(any('In Progress' in n['message'] for n in notifications))
 
     def test_team_creation_and_named_member_invitation(self):
         self.a.put('/api/profile', json={'skills': 'Python, Web design', 'department': 'Computing'})

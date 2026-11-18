@@ -15,7 +15,7 @@ DB=DATA/'campusone.sqlite3'; UPLOADS=DATA/'uploads'; UPLOADS.mkdir(exist_ok=True
 app=Flask(__name__, static_folder='frontend', static_url_path='')
 app.config.update(SECRET_KEY=os.environ.get('CAMPUSONE_SECRET') or 'dev-only-change-this-secret', MAX_CONTENT_LENGTH=5*1024*1024, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','0')=='1')
 logging.basicConfig(level=os.environ.get('LOG_LEVEL','INFO'))
-MODULES={'teams':'projects','tutoring':'tutors','lost-found':'items','opportunities':'opportunities'}
+MODULES={'teams':'projects','tutoring':'tutors','lost-found':'items','opportunities':'opportunities','mentors':'mentors','issues':'issues'}
 ALLOWED_UPLOAD={'png','jpg','jpeg','webp'}
 
 def now(): return datetime.now(timezone.utc).isoformat(timespec='seconds')
@@ -76,7 +76,13 @@ def record_dict(row,include_owner=False):
 def api_error(msg,status=400): return jsonify(error=msg),status
 
 @app.get('/api/health')
-def health(): return jsonify(status='ok',app='CampusOne',database='sqlite3')
+def health():
+    try:
+        db().execute('SELECT 1').fetchone()
+        return jsonify(status='ok',app='CampusOne',database='sqlite3')
+    except sqlite3.Error:
+        app.logger.exception('Health check could not query SQLite')
+        return jsonify(status='error',app='CampusOne',database='unavailable'),503
 @app.post('/api/auth/register')
 def register():
     d=payload(); name=str(d.get('name','')).strip(); email=str(d.get('email','')).strip().lower(); pw=str(d.get('password','')); confirm=str(d.get('confirm_password',pw))
@@ -100,11 +106,8 @@ def auth_me():
     u=user(); p=db().execute('SELECT * FROM profiles WHERE user_id=?',(u['id'],)).fetchone(); return jsonify(user=dict(u),profile=dict(p) if p else {})
 @app.post('/api/auth/forgot-password')
 def forgot():
-    # Safe by default: deployment may wire an email provider; never disclose account existence.
-    d=payload(); email=str(d.get('email','')).lower().strip(); row=db().execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
-    if row and app.config['SECRET_KEY']!='dev-only-change-this-secret':
-        token=secrets.token_urlsafe(32); db().execute('INSERT OR REPLACE INTO password_resets VALUES(?,?,?)',(email,generate_password_hash(token),now())); db().commit(); app.logger.info('Password reset requested; configure a mail provider to deliver token.')
-    return jsonify(message='If the account exists, password reset instructions will be sent when email delivery is configured.')
+    # No reset token is created until a delivery provider is configured.
+    return jsonify(message='Password recovery is not configured yet. Contact your campus administrator for help.'),501
 @app.route('/api/profile',methods=['GET','PUT'])
 @login_required
 def profile():
@@ -280,7 +283,8 @@ def dashboard():
 def admin_dashboard():
     c=db(); stats={'students':c.execute("SELECT count(*) FROM users WHERE role='student'").fetchone()[0], 'active_users':c.execute("SELECT count(*) FROM users WHERE active=1").fetchone()[0]}
     for m in MODULES: stats[m]=c.execute('SELECT count(*) FROM records WHERE module=?',(m,)).fetchone()[0]
-    return jsonify(stats=stats,users=[dict(x) for x in c.execute('SELECT id,name,email,role,active,created_at FROM users ORDER BY created_at DESC LIMIT 100')])
+    issues=c.execute("SELECT r.id,r.title,r.status,r.created_at,u.name owner_name,r.data FROM records r JOIN users u ON u.id=r.owner_id WHERE r.module='issues' ORDER BY r.created_at DESC LIMIT 100").fetchall()
+    return jsonify(stats=stats,users=[dict(x) for x in c.execute('SELECT id,name,email,role,active,created_at FROM users ORDER BY created_at DESC LIMIT 100')],issues=[{**dict(x),'data':json.loads(x['data'] or '{}')} for x in issues])
 @app.put('/api/admin/users/<int:uid>')
 @admin_required
 def admin_user(uid):
@@ -288,11 +292,11 @@ def admin_user(uid):
 @app.put('/api/admin/records/<int:rid>')
 @admin_required
 def admin_record(rid):
-    d=payload(); status=str(d.get('status','')).strip(); allowed={'lost-found':{'Open','Claim Pending','Returned','Closed'}}
+    d=payload(); status=str(d.get('status','')).strip(); allowed={'lost-found':{'Open','Claim Pending','Returned','Closed'},'issues':{'Submitted','Under Review','In Progress','Resolved','Closed'}}
     c=db(); r=c.execute('SELECT * FROM records WHERE id=?',(rid,)).fetchone()
     if not r: return api_error('Record not found.',404)
     if status not in allowed.get(r['module'],set()): return api_error('Invalid status for this record.')
-    c.execute('UPDATE records SET status=?,updated_at=? WHERE id=?',(status,now(),rid)); c.execute('INSERT INTO history(record_id,actor_id,status,note,created_at) VALUES(?,?,?,?,?)',(rid,user()['id'],status,str(d.get('note',''))[:1000],now())); notify(r['owner_id'],'Update: '+r['title'],'Status changed to '+status+'. '+str(d.get('note','')),'/issues'); c.commit(); return jsonify(ok=True)
+    c.execute('UPDATE records SET status=?,updated_at=? WHERE id=?',(status,now(),rid)); c.execute('INSERT INTO history(record_id,actor_id,status,note,created_at) VALUES(?,?,?,?,?)',(rid,user()['id'],status,str(d.get('note',''))[:1000],now())); notify(r['owner_id'],'Update: '+r['title'],'Status changed to '+status+'. '+str(d.get('note','')),'/'+r['module']); c.commit(); return jsonify(ok=True)
 @app.get('/api/records/<int:rid>/history')
 @login_required
 def record_history(rid):

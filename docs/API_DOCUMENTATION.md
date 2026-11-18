@@ -9,10 +9,10 @@ All JSON endpoints use same-origin Flask session cookies (`HttpOnly`, `SameSite=
 | POST | `/api/auth/login` | public | Start session |
 | POST | `/api/auth/logout` | public | End session |
 | GET | `/api/auth/me` | signed in | Current user and profile |
-| POST | `/api/auth/forgot-password` | public | Generic safe response; email delivery is not configured |
+| POST | `/api/auth/forgot-password` | public | Returns `501` until an email delivery provider is configured; creates no unusable reset token |
 | GET, PUT | `/api/profile` | signed in | Read/update profile |
 | GET, POST | `/api/{teams,tutoring,lost-found,opportunities,mentors,issues}` | signed in; opportunities POST admin only | Search/list and create module records |
-| POST | `/api/{module}/{record_id}/requests` | signed in | Send invitation, session request, claim, mentor request or inquiry |
+| POST | `/api/{module}/{record_id}/requests` | signed in | Send invitation, session request, claim, mentor request, issue follow-up or opportunity inquiry |
 | GET | `/api/requests` | signed in | Requests sent to or received by the user |
 | PUT | `/api/requests/{id}` | recipient or admin | Respond to request |
 | POST | `/api/opportunities/{id}/bookmark` | signed in | Toggle saved opportunity |
@@ -20,12 +20,12 @@ All JSON endpoints use same-origin Flask session cookies (`HttpOnly`, `SameSite=
 | GET | `/api/notifications` | signed in | List in-app notifications |
 | PUT | `/api/notifications/{id}/read` | owner | Mark notification read |
 | GET | `/api/dashboard` | signed in | Personal activity counts |
-| GET | `/api/admin/dashboard` | admin | Live counts, user list, issue queue |
+| GET | `/api/admin/dashboard` | admin | Live counts, user list and campus issue queue |
 | PUT | `/api/admin/users/{id}` | admin | Deactivate/reactivate student account |
-| PUT | `/api/admin/records/{id}` | admin | Update issue or lost-item status and notify owner |
+| PUT | `/api/admin/records/{id}` | admin | Update issue or lost-item status and notify owner. Issue statuses: Submitted, Under Review, In Progress, Resolved, Closed. Lost-item statuses: Open, Claim Pending, Returned, Closed. |
 | GET | `/api/records/{id}/history` | owner or admin | Read status history |
 
-Listing search accepts `q`, `category`, `department`, `status`, `mine=1`, `saved=1` (opportunities) and `match=1` (projects). Data fields are JSON on each record. Request payloads include `message`, and for session requests may include `datetime` and `mode`.
+Listing search accepts `q`, `category`, `department`, `status`, `mine=1`, `saved=1` (opportunities) and `match=1` (projects). Data fields are JSON on each record. Request payloads include `message`, and for tutoring sessions may include `datetime` and `mode`.
 
 ## Database
 
