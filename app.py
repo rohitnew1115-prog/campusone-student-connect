@@ -40,6 +40,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title TEXT NOT NULL, message TEXT NOT NULL, url TEXT DEFAULT '', read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS history(id INTEGER PRIMARY KEY, record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE, actor_id INTEGER NOT NULL REFERENCES users(id), status TEXT NOT NULL, note TEXT DEFAULT '', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS bookmarks(user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE, created_at TEXT NOT NULL, PRIMARY KEY(user_id,record_id));
+    CREATE TABLE IF NOT EXISTS team_members(id INTEGER PRIMARY KEY, team_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, invited_by INTEGER NOT NULL REFERENCES users(id), role TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending','Accepted','Declined','Left')), created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(team_id,user_id));
+    CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id,status);
     CREATE TABLE IF NOT EXISTS password_resets(email TEXT PRIMARY KEY, token_hash TEXT NOT NULL, expires_at TEXT NOT NULL);
     '''); c.commit();
     admin=os.environ.get('CAMPUSONE_ADMIN_EMAIL','').lower()
@@ -118,6 +120,56 @@ def profile():
     if sets: c.execute(f'UPDATE profiles SET {sets},updated_at=? WHERE user_id=?',(*vals,now(),u['id'])); c.commit()
     p=c.execute('SELECT * FROM profiles WHERE user_id=?',(u['id'],)).fetchone(); return jsonify(profile=dict(p))
 
+@app.get('/api/students')
+@login_required
+def find_students():
+    q=request.args.get('q','').strip().casefold(); department=request.args.get('department','').strip().casefold(); c=db()
+    rows=c.execute("SELECT u.id,u.name,p.department,p.year,p.skills,p.interests,p.availability,p.bio FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.active=1 AND u.role='student' AND u.id!=? ORDER BY u.name LIMIT 200",(user()['id'],)).fetchall()
+    results=[]
+    for r in rows:
+        x=dict(r); skills=json.loads(x.pop('skills') or '[]'); interests=json.loads(x.pop('interests') or '[]'); hay=' '.join([x['name'],x['department'],x['year'],x['availability'],x['bio'],' '.join(skills),' '.join(interests)]).casefold()
+        if (not q or q in hay) and (not department or department in x['department'].casefold()):
+            x['skills']=skills; x['interests']=interests; results.append(x)
+    return jsonify(students=results[:80])
+
+@app.post('/api/teams/<int:team_id>/invitations')
+@login_required
+def invite_team_member(team_id):
+    d=payload(); c=db(); team=c.execute("SELECT * FROM records WHERE id=? AND module='teams'",(team_id,)).fetchone(); uid=d.get('user_id')
+    if not team: return api_error('Team not found.',404)
+    if team['owner_id']!=user()['id']: return api_error('Only the team owner can invite members.',403)
+    try: uid=int(uid)
+    except (TypeError,ValueError): return api_error('Choose a student to invite.')
+    student=c.execute("SELECT id,name FROM users WHERE id=? AND role='student' AND active=1",(uid,)).fetchone()
+    if not student: return api_error('Student account not found.',404)
+    if uid==user()['id']: return api_error('You are already the team owner.')
+    try:
+        cur=c.execute('INSERT INTO team_members(team_id,user_id,invited_by,role,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',(team_id,uid,user()['id'],str(d.get('role',''))[:100],'Pending',now(),now()))
+    except sqlite3.IntegrityError: return api_error('This student already has a team invitation or membership.',409)
+    notify(uid,'Team invitation',user()['name']+' invited you to join “'+team['title']+'”.','/requests'); c.commit()
+    return jsonify(invitation_id=cur.lastrowid,status='Pending',student=student['name']),201
+
+@app.get('/api/teams/<int:team_id>/members')
+@login_required
+def team_roster(team_id):
+    c=db(); team=c.execute("SELECT * FROM records WHERE id=? AND module='teams'",(team_id,)).fetchone()
+    if not team: return api_error('Team not found.',404)
+    if team['owner_id']!=user()['id'] and not c.execute("SELECT 1 FROM team_members WHERE team_id=? AND user_id=? AND status='Accepted'",(team_id,user()['id'])).fetchone(): return api_error('Team membership required.',403)
+    members=c.execute('SELECT tm.id,tm.user_id,tm.role,tm.status,tm.created_at,u.name,p.department,p.year FROM team_members tm JOIN users u ON u.id=tm.user_id JOIN profiles p ON p.user_id=u.id WHERE tm.team_id=? ORDER BY tm.created_at',(team_id,)).fetchall()
+    owner=c.execute('SELECT u.id,u.name,p.department,p.year FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.id=?',(team['owner_id'],)).fetchone()
+    return jsonify(owner=dict(owner),members=[dict(m) for m in members])
+
+@app.put('/api/teams/invitations/<int:invitation_id>')
+@login_required
+def answer_team_invitation(invitation_id):
+    d=payload(); status=d.get('status'); c=db(); row=c.execute('SELECT tm.*,r.title FROM team_members tm JOIN records r ON r.id=tm.team_id WHERE tm.id=?',(invitation_id,)).fetchone()
+    if not row: return api_error('Invitation not found.',404)
+    if row['user_id']!=user()['id']: return api_error('This invitation belongs to another student.',403)
+    if row['status']!='Pending': return api_error('This invitation has already been answered.',409)
+    if status not in ('Accepted','Declined'): return api_error('Choose accept or decline.')
+    c.execute('UPDATE team_members SET status=?,updated_at=? WHERE id=?',(status,now(),invitation_id)); notify(row['invited_by'],'Team invitation '+status.lower(),user()['name']+' '+status.lower()+' your invitation to “'+row['title']+'”.','/teams'); c.commit()
+    return jsonify(ok=True,status=status)
+
 def module_records(module):
     if module not in MODULES: return None
     c=db(); rows=c.execute('SELECT r.*,u.name owner_name FROM records r JOIN users u ON u.id=r.owner_id WHERE r.module=? AND r.kind=? ORDER BY r.created_at DESC LIMIT 200',(module,MODULES[module])).fetchall()
@@ -170,7 +222,12 @@ def request_record(module,rid):
 @login_required
 def requests_list():
     c=db(); rows=c.execute('SELECT l.*,r.title,u.name sender_name,u2.name recipient_name FROM links l JOIN records r ON r.id=l.record_id JOIN users u ON u.id=l.sender_id JOIN users u2 ON u2.id=l.recipient_id WHERE l.sender_id=? OR l.recipient_id=? ORDER BY l.created_at DESC',(user()['id'],user()['id'])).fetchall()
-    return jsonify(requests=[dict(x) for x in rows])
+    result=[dict(x) for x in rows]
+    invites=c.execute('SELECT tm.id,tm.team_id,tm.user_id,tm.invited_by,tm.role,tm.status,tm.created_at,r.title,u.name inviter_name,u2.name invitee_name FROM team_members tm JOIN records r ON r.id=tm.team_id JOIN users u ON u.id=tm.invited_by JOIN users u2 ON u2.id=tm.user_id WHERE tm.user_id=? OR tm.invited_by=? ORDER BY tm.created_at DESC',(user()['id'],user()['id'])).fetchall()
+    for x in invites:
+        i=dict(x); i.update(kind='team_invitation',message=i['role'],sender_id=i['invited_by'],recipient_id=i['user_id'],sender_name=i['inviter_name'],recipient_name=i['invitee_name'],is_team_invitation=True); result.append(i)
+    result.sort(key=lambda x:x['created_at'],reverse=True)
+    return jsonify(requests=result)
 @app.put('/api/requests/<int:lid>')
 @login_required
 def update_request(lid):

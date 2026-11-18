@@ -83,6 +83,23 @@ class CampusOneFlows(unittest.TestCase):
         self.assertTrue(self.admin.put('/api/admin/users/' + str(student_id), json={'active': False}).get_json()['ok'])
         self.assertEqual(self.b.get('/api/auth/me').status_code, 401)
 
+    def test_team_creation_and_named_member_invitation(self):
+        self.a.put('/api/profile', json={'skills': 'Python, Web design', 'department': 'Computing'})
+        self.b.put('/api/profile', json={'skills': 'Python, UI design', 'department': 'Computing'})
+        search = self.a.get('/api/students?q=Python').get_json()['students']
+        self.assertTrue(any(s['name'] == 'Blake Student' for s in search))
+        team = self.create(self.a, 'teams', 'Campus app team', {'listing_type': 'Create a team', 'required_skills': ['Python'], 'team_size': '4'})
+        invite = self.a.post(f"/api/teams/{team['id']}/invitations", json={'user_id': self.b.get('/api/auth/me').get_json()['user']['id'], 'role': 'Backend developer'})
+        self.assertEqual(invite.status_code, 201, invite.get_json())
+        incoming = self.b.get('/api/requests').get_json()['requests']
+        team_invite = next(r for r in incoming if r.get('is_team_invitation'))
+        self.assertEqual(team_invite['title'], 'Campus app team')
+        answer = self.b.put(f"/api/teams/invitations/{invite.get_json()['invitation_id']}", json={'status': 'Accepted'})
+        self.assertEqual(answer.status_code, 200)
+        roster = self.a.get(f"/api/teams/{team['id']}/members").get_json()
+        self.assertEqual(roster['members'][0]['status'], 'Accepted')
+        self.assertEqual(roster['members'][0]['role'], 'Backend developer')
+
     def test_upload_validation_and_health(self):
         self.assertEqual(self.a.get('/api/health').get_json()['database'], 'sqlite3')
         bad = self.b.post('/api/upload', data={'file': (BytesIO(b'not image'), 'payload.exe')}, content_type='multipart/form-data')
