@@ -1,0 +1,1 @@
+{"name":"campusone-student-connect","version":"1.0.0","private":true,"description":"CampusOne cross-platform student campus-connect application","scripts":{"start":"python app.py","build:android":"npx cap sync android"},"dependencies":{"@capacitor/android":"^7.4.3","@capacitor/core":"^7.4.3"},"devDependencies":{"@capacitor/cli":"^7.4.3"}}
