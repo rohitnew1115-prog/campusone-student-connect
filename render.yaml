@@ -1,14 +1,10 @@
 services:
   - type: web
-    name: campusone
+    name: campusone-demo
     runtime: docker
-    plan: starter
+    plan: free
     region: singapore
     healthCheckPath: /api/health
-    disk:
-      name: campusone-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: CAMPUSONE_DATA_DIR
         value: /data

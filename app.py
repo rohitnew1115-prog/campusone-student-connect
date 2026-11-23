@@ -15,7 +15,7 @@ DB=DATA/'campusone.sqlite3'; UPLOADS=DATA/'uploads'; UPLOADS.mkdir(exist_ok=True
 app=Flask(__name__, static_folder='frontend', static_url_path='')
 app.config.update(SECRET_KEY=os.environ.get('CAMPUSONE_SECRET') or 'dev-only-change-this-secret', MAX_CONTENT_LENGTH=5*1024*1024, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','0')=='1')
 logging.basicConfig(level=os.environ.get('LOG_LEVEL','INFO'))
-MODULES={'teams':'projects','tutoring':'tutors','lost-found':'items','opportunities':'opportunities','mentors':'mentors','issues':'issues'}
+MODULES={'teams':'projects','tutoring':'tutors','lost-found':'items','opportunities':'opportunities'}
 ALLOWED_UPLOAD={'png','jpg','jpeg','webp'}
 
 def now(): return datetime.now(timezone.utc).isoformat(timespec='seconds')
@@ -202,8 +202,7 @@ def create_record(module):
     if module=='opportunities' and user()['role']!='admin': return api_error('Only administrators can publish opportunities.',403)
     d=payload(); title=str(d.get('title','')).strip(); data=d.get('data',{})
     if not title or len(title)>180 or not isinstance(data,dict): return api_error('A title and valid details are required.')
-    if module=='issues': data['complaint_id']=data.get('complaint_id') or 'CO-'+secrets.token_hex(4).upper()
-    status='Submitted' if module=='issues' else ('Pending' if module in ('tutoring','mentors') else 'Open')
+    status='Pending' if module=='tutoring' else 'Open'
     c=db(); cur=c.execute('INSERT INTO records(module,kind,owner_id,title,data,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(module,MODULES[module],user()['id'],title,json.dumps(data),status,now(),now())); rid=cur.lastrowid
     c.execute('INSERT INTO history(record_id,actor_id,status,note,created_at) VALUES(?,?,?,?,?)',(rid,user()['id'],status,'Created',now()))
     if module=='opportunities':
@@ -216,7 +215,7 @@ def request_record(module,rid):
     c=db(); rec=c.execute('SELECT * FROM records WHERE id=? AND module=?',(rid,module)).fetchone()
     if not rec: return api_error('Listing not found.',404)
     if rec['owner_id']==user()['id']: return api_error('You cannot request your own listing.')
-    d=payload(); kind={'teams':'team_invite','tutoring':'tutoring_session','lost-found':'item_claim','mentors':'mentor_request','issues':'issue_followup','opportunities':'opportunity_question'}[module]
+    d=payload(); kind={'teams':'team_invite','tutoring':'tutoring_session','lost-found':'item_claim','opportunities':'opportunity_question'}[module]
     try:
         cur=c.execute('INSERT INTO links(record_id,sender_id,recipient_id,kind,message,data,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(rid,user()['id'],rec['owner_id'],kind,str(d.get('message',''))[:1000],json.dumps(d),now(),now()))
     except sqlite3.IntegrityError: return api_error('You already sent a request for this listing.',409)
@@ -283,8 +282,7 @@ def dashboard():
 def admin_dashboard():
     c=db(); stats={'students':c.execute("SELECT count(*) FROM users WHERE role='student'").fetchone()[0], 'active_users':c.execute("SELECT count(*) FROM users WHERE active=1").fetchone()[0]}
     for m in MODULES: stats[m]=c.execute('SELECT count(*) FROM records WHERE module=?',(m,)).fetchone()[0]
-    issues=c.execute("SELECT r.id,r.title,r.status,r.created_at,u.name owner_name,r.data FROM records r JOIN users u ON u.id=r.owner_id WHERE r.module='issues' ORDER BY r.created_at DESC LIMIT 100").fetchall()
-    return jsonify(stats=stats,users=[dict(x) for x in c.execute('SELECT id,name,email,role,active,created_at FROM users ORDER BY created_at DESC LIMIT 100')],issues=[{**dict(x),'data':json.loads(x['data'] or '{}')} for x in issues])
+    return jsonify(stats=stats,users=[dict(x) for x in c.execute('SELECT id,name,email,role,active,created_at FROM users ORDER BY created_at DESC LIMIT 100')])
 @app.put('/api/admin/users/<int:uid>')
 @admin_required
 def admin_user(uid):
@@ -292,7 +290,7 @@ def admin_user(uid):
 @app.put('/api/admin/records/<int:rid>')
 @admin_required
 def admin_record(rid):
-    d=payload(); status=str(d.get('status','')).strip(); allowed={'lost-found':{'Open','Claim Pending','Returned','Closed'},'issues':{'Submitted','Under Review','In Progress','Resolved','Closed'}}
+    d=payload(); status=str(d.get('status','')).strip(); allowed={'lost-found':{'Open','Claim Pending','Returned','Closed'}}
     c=db(); r=c.execute('SELECT * FROM records WHERE id=?',(rid,)).fetchone()
     if not r: return api_error('Record not found.',404)
     if status not in allowed.get(r['module'],set()): return api_error('Invalid status for this record.')

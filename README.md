@@ -2,7 +2,7 @@
 
 **One Campus. Every Connection.** A mobile friendly campus platform built with HTML, CSS, vanilla JavaScript, Flask and SQLite.
 
-The app includes six campus modules: Team Finder, Student Tutoring, Lost & Found, Opportunity Board, Peer Mentor Connect and Campus Issue System. These are community features; the app does not verify campus identity or replace official campus records.
+The app includes four campus modules: Team Finder, Student Tutoring, Lost & Found and Opportunity Board. It does not verify campus identity or replace official campus records.
 
 ## Run locally
 
@@ -29,13 +29,13 @@ To fill a local capstone demo with fictional examples, run `python database/seed
 - Team project posts, candidate skill and interest ranking, invitations and responses.
 - Tutor profiles, subject filtering and session requests.
 - Lost/found listings, private claims and status moderation.
-- Admin published opportunities and student bookmarks; peer mentor listings and requests; campus issue reports with admin status tracking.
+- Admin published opportunities and student bookmarks.
 - Dashboard counts, in-app notifications, searchable listings and validated private image uploads.
 - Responsive desktop and mobile interface with PWA manifest, service worker and install metadata.
 
 ## Important scope notes
 
-The platform uses a common SQLite records/requests schema for the six modules. It does not claim institutional identity verification: campus eligibility rules and email verification are not configured. Configure an institutional mail service before offering password reset; the current forgot-password flow does not send email. Notifications are in-app only. Durable hosting requires a persistent volume for SQLite and uploaded files; the `render.yaml` blueprint configures one, while `render-free.yaml` is only a temporary demo. An Android project and signed APK are not included yet. PWA installation requires HTTPS in production.
+The platform uses a common SQLite records/requests schema for the four modules. It does not claim institutional identity verification: campus eligibility rules and email verification are not configured. Configure an institutional mail service before offering password reset; the current forgot-password flow does not send email. Notifications are in-app only. Durable hosting requires a persistent volume for SQLite and uploaded files; `render-persistent.yaml` configures one, while `render.yaml` is the temporary free demo with ephemeral data. An Android project and signed APK are not included yet. PWA installation requires HTTPS in production.
 
 The UI and API implement create, search, request/response, status and notification flows, with focused integration tests. Calendar sync, push notifications, tutor review moderation, email-based password recovery, a Windows native installer, production deployment and a built APK require additional integrations or a provisioned environment.
 
@@ -45,7 +45,7 @@ Use a persistent disk mounted at `/data`, set `CAMPUSONE_DATA_DIR=/data`, set `C
 
 ## Free phone demo
 
-For a no-cost demo deployment, use `render-free.yaml` as the Blueprint file in Render. It creates a public web service with a shareable HTTPS URL. The free service sleeps after 15 minutes without traffic and may take about a minute to wake up. Its filesystem is temporary, so accounts, listings, notifications and uploaded photos can disappear after restarts or redeploys. It is not suitable for durable student data. Use the `render.yaml` configuration with a persistent disk only when a paid service is authorized.
+For a no-cost demo deployment, use the root `render.yaml` Blueprint in Render. It creates a public web service with a shareable HTTPS URL. The free service sleeps after 15 minutes without traffic and may take about a minute to wake up. Its filesystem is temporary, so accounts, listings, notifications and uploaded photos can disappear after restarts or redeploys. It is not suitable for durable student data. The persistent-disk configuration is in `render-persistent.yaml`.
 
 ## Project layout
 
