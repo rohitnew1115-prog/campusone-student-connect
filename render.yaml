@@ -10,6 +10,8 @@ services:
         value: /data
       - key: COOKIE_SECURE
         value: "1"
+      - key: CAMPUSONE_DEMO_MODE
+        value: "1"
       - key: CAMPUSONE_SECRET
         generateValue: true
       - key: CAMPUSONE_ADMIN_EMAIL

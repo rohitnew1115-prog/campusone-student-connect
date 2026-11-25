@@ -69,6 +69,31 @@ def admin_required(fn):
 def payload(): return request.get_json(silent=True) or {}
 def notify(uid,title,message,url=''):
     if uid: db().execute('INSERT INTO notifications(user_id,title,message,url,created_at) VALUES(?,?,?,?,?)',(uid,title,message,url,now()))
+
+def seed_demo_inbox(uid):
+    """Give the first real demo student clearly labelled sample inbox activity."""
+    if os.environ.get('CAMPUSONE_DEMO_MODE')!='1': return
+    c=db(); first=c.execute("SELECT id FROM users WHERE role='student' AND email NOT LIKE 'demo-%@campusone.invalid' ORDER BY id LIMIT 1").fetchone()
+    if not first or first['id']!=uid: return
+    samples=[
+        ('teams','Campus event finder','Anika Menon','team_invitation','Frontend teammate','Demo · Team invitation','Demo · Anika invited you to join “Campus event finder”.'),
+        ('teams','Smart lab energy monitor','Meera Nair','team_invitation','Sensor and data contributor','Demo · Team invitation','Demo · Meera invited you to join “Smart lab energy monitor”.'),
+        ('tutoring','Python foundations with Rohan','Rohan Bose','tutoring_session','Can we meet for a 60-minute Python practice session this week?','Demo · Tutoring request','Demo · Rohan Bose sent a tutoring request.'),
+        ('lost-found','Demo: Teal water bottle','Kavya Joseph','item_claim','I think this may be mine; I can describe the sticker on the base.','Demo · Lost & found claim','Demo · Kavya Joseph submitted an item claim.'),
+        ('opportunities','Winter Web Build Weekend','Dev Shah','opportunity_question','Are beginner teams welcome for this hackathon?','Demo · Opportunity question','Demo · Dev Shah asked about an opportunity listing.'),
+    ]
+    for module,title,sender_name,kind,detail,alert_title,alert_message in samples:
+        rec=c.execute('SELECT id FROM records WHERE module=? AND title=? ORDER BY id LIMIT 1',(module,title)).fetchone()
+        sender=c.execute('SELECT id FROM users WHERE name=? ORDER BY id LIMIT 1',('Demo · '+sender_name,)).fetchone()
+        if not rec or not sender: continue
+        if kind=='team_invitation':
+            if not c.execute('SELECT 1 FROM team_members WHERE team_id=? AND user_id=?',(rec['id'],uid)).fetchone():
+                c.execute("INSERT INTO team_members(team_id,user_id,invited_by,role,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",(rec['id'],uid,sender['id'],detail,'Pending',now(),now()))
+        elif not c.execute('SELECT 1 FROM links WHERE record_id=? AND sender_id=? AND kind=?',(rec['id'],sender['id'],kind)).fetchone():
+            c.execute('INSERT INTO links(record_id,sender_id,recipient_id,kind,message,data,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(rec['id'],sender['id'],uid,kind,detail,json.dumps({'demo':True}), 'Pending',now(),now()))
+        if not c.execute('SELECT 1 FROM notifications WHERE user_id=? AND title=? AND message=?',(uid,alert_title,alert_message)).fetchone():
+            c.execute('INSERT INTO notifications(user_id,title,message,url,read,created_at) VALUES(?,?,?,?,0,?)',(uid,alert_title,alert_message,'/notifications',now()))
+    c.commit()
 def record_dict(row,include_owner=False):
     d=dict(row); d['data']=json.loads(d['data'] or '{}')
     if include_owner: d['owner']=dict(db().execute('SELECT id,name,email FROM users WHERE id=?',(d.pop('owner_id'),)).fetchone())
@@ -90,14 +115,14 @@ def register():
     if len(pw)<10 or pw!=confirm: return api_error('Use a matching password with at least 10 characters.')
     try:
         c=db(); role='admin' if email==os.environ.get('CAMPUSONE_ADMIN_EMAIL','').strip().lower() else 'student'; cur=c.execute('INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)',(name,email,generate_password_hash(pw),role,now())); uid=cur.lastrowid
-        c.execute('INSERT INTO profiles(user_id,updated_at) VALUES(?,?)',(uid,now())); c.commit(); session.clear(); session['uid']=uid
+        c.execute('INSERT INTO profiles(user_id,updated_at) VALUES(?,?)',(uid,now())); c.commit(); session.clear(); session['uid']=uid; seed_demo_inbox(uid)
         return jsonify(user=dict(id=uid,name=name,email=email,role=role)),201
     except sqlite3.IntegrityError: return api_error('An account already uses that email.',409)
 @app.post('/api/auth/login')
 def auth_login():
     d=payload(); email=str(d.get('email','')).strip().lower(); row=db().execute('SELECT * FROM users WHERE email=? AND active=1',(email,)).fetchone()
     if not row or not check_password_hash(row['password_hash'],str(d.get('password',''))): return api_error('Email or password is incorrect.',401)
-    session.clear(); session['uid']=row['id']; return jsonify(user={k:row[k] for k in ('id','name','email','role')})
+    session.clear(); session['uid']=row['id']; seed_demo_inbox(row['id']); return jsonify(user={k:row[k] for k in ('id','name','email','role')})
 @app.post('/api/auth/logout')
 def auth_logout(): session.clear(); return jsonify(ok=True)
 @app.get('/api/auth/me')
