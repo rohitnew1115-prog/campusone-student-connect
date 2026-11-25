@@ -71,10 +71,9 @@ def notify(uid,title,message,url=''):
     if uid: db().execute('INSERT INTO notifications(user_id,title,message,url,created_at) VALUES(?,?,?,?,?)',(uid,title,message,url,now()))
 
 def seed_demo_inbox(uid):
-    """Give the first real demo student clearly labelled sample inbox activity."""
+    """Give a signed-in demo student clearly labelled sample inbox activity."""
     if os.environ.get('CAMPUSONE_DEMO_MODE')!='1': return
-    c=db(); first=c.execute("SELECT id FROM users WHERE role='student' AND email NOT LIKE 'demo-%@campusone.invalid' ORDER BY id LIMIT 1").fetchone()
-    if not first or first['id']!=uid: return
+    c=db()
     samples=[
         ('teams','Campus event finder','Anika Menon','team_invitation','Frontend teammate','Demo · Team invitation','Demo · Anika invited you to join “Campus event finder”.'),
         ('teams','Smart lab energy monitor','Meera Nair','team_invitation','Sensor and data contributor','Demo · Team invitation','Demo · Meera invited you to join “Smart lab energy monitor”.'),
@@ -128,7 +127,7 @@ def auth_logout(): session.clear(); return jsonify(ok=True)
 @app.get('/api/auth/me')
 @login_required
 def auth_me():
-    u=user(); p=db().execute('SELECT * FROM profiles WHERE user_id=?',(u['id'],)).fetchone(); return jsonify(user=dict(u),profile=dict(p) if p else {})
+    u=user(); seed_demo_inbox(u['id']); p=db().execute('SELECT * FROM profiles WHERE user_id=?',(u['id'],)).fetchone(); return jsonify(user=dict(u),profile=dict(p) if p else {})
 @app.post('/api/auth/forgot-password')
 def forgot():
     # No reset token is created until a delivery provider is configured.
