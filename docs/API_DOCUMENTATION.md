@@ -9,7 +9,7 @@ All JSON endpoints use same-origin Flask session cookies (`HttpOnly`, `SameSite=
 | POST | `/api/auth/login` | public | Start session |
 | POST | `/api/auth/logout` | public | End session |
 | GET | `/api/auth/me` | signed in | Current user and profile |
-| POST | `/api/auth/forgot-password` | public | Generic safe response; email delivery is not configured |
+| POST | `/api/auth/forgot-password` | public | Returns `501` with a clear message until email delivery is configured; no reset email is sent |
 | GET, PUT | `/api/profile` | signed in | Read/update profile |
 | GET, POST | `/api/{teams,tutoring,lost-found,opportunities}` | signed in; opportunities POST admin only | Search/list and create module records |
 | POST | `/api/{module}/{record_id}/requests` | signed in | Send a team/tutoring request, lost-item claim or opportunity inquiry |

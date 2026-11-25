@@ -107,7 +107,7 @@ def auth_me():
 @app.post('/api/auth/forgot-password')
 def forgot():
     # No reset token is created until a delivery provider is configured.
-    return jsonify(message='Password recovery is not configured yet. Contact your campus administrator for help.'),501
+    return jsonify(error='Password reset is not set up yet. Please contact your campus administrator.'),501
 @app.route('/api/profile',methods=['GET','PUT'])
 @login_required
 def profile():
